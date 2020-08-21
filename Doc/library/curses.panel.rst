@@ -2,7 +2,7 @@
 ==========================================================
 
 .. module:: curses.panel
-   :synopsis: A panel stack extension that adds depth to  curses windows.
+   :synopsis: A panel stack extension that adds depth to curses windows.
 
 .. sectionauthor:: A.M. Kuchling <amk@amk.ca>
 

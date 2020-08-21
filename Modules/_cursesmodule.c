@@ -96,7 +96,7 @@
 
 /* Release Number */
 
-static const char PyCursesVersion[] = "2.2";
+static const char PyCursesVersion[] = "2.3";
 
 /* Includes */
 
@@ -198,6 +198,7 @@ static char *screen_encoding = NULL;
         PyErr_SetString(PyCursesError,                          \
                         "must call start_color() first");       \
         return 0; }
+
 
 /* Utility Functions */
 
@@ -529,6 +530,14 @@ static int func_PyCursesInitialisedColor(void)
 {
     PyCursesInitialisedColor;
     return 1;
+}
+
+static const char *func_PyCursesEncoding(PyCursesWindowObject *wo) {
+    if (wo == NULL) {
+        return screen_encoding;
+    } else {
+        wo->encoding;
+    }
 }
 
 /*****************************************************************************
@@ -4705,6 +4714,7 @@ PyInit__curses(void)
     PyCurses_API[1] = (void *)func_PyCursesSetupTermCalled;
     PyCurses_API[2] = (void *)func_PyCursesInitialised;
     PyCurses_API[3] = (void *)func_PyCursesInitialisedColor;
+    PyCurses_API[4] = (void *)func_PyCursesEncoding;
 
     /* Create the module and add the functions */
     m = PyModule_Create(&_cursesmodule);

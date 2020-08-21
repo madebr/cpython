@@ -1068,6 +1068,7 @@ class PyBuildExt(build_ext):
         curses_defines = []
         curses_includes = []
         panel_library = 'panel'
+        menu_library = 'menu'
         if curses_library == 'ncursesw':
             curses_defines.append(('HAVE_NCURSESW', '1'))
             if not CROSS_COMPILING:
@@ -1075,6 +1076,7 @@ class PyBuildExt(build_ext):
             # Bug 1464056: If _curses.so links with ncursesw,
             # _curses_panel.so must link with panelw.
             panel_library = 'panelw'
+            menu_library = 'menuw'
             if MACOS:
                 # On OS X, there is no separate /usr/lib/libncursesw nor
                 # libpanelw.  If we are here, we found a locally-supplied
@@ -1123,6 +1125,18 @@ class PyBuildExt(build_ext):
                            libraries=[panel_library, *curses_libs]))
         elif not skip_curses_panel:
             self.missing.append('_curses_panel')
+
+        # If the curses module is enabled, check for the menu module
+        # _curses_menu needs some form of ncurses
+        skip_curses_menu = True if AIX else False
+        if (curses_enabled and not skip_curses_menu and
+                self.compiler.find_library_file(self.lib_dirs, menu_library)):
+            self.add(Extension('_curses_menu', ['_curses_menu.c'],
+                           include_dirs=curses_includes,
+                           define_macros=curses_defines,
+                           libraries=[menu_library, *curses_libs]))
+        elif not skip_curses_menu:
+            self.missing.append('_curses_menu')
 
     def detect_crypt(self):
         # crypt module.

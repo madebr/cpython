@@ -54,7 +54,7 @@
 extern "C" {
 #endif
 
-#define PyCurses_API_pointers 4
+#define PyCurses_API_pointers 5
 
 /* Type declarations */
 
@@ -81,6 +81,7 @@ static void **PyCurses_API;
 #define PyCursesSetupTermCalled  {if (! ((int (*)(void))PyCurses_API[1]) () ) return NULL;}
 #define PyCursesInitialised      {if (! ((int (*)(void))PyCurses_API[2]) () ) return NULL;}
 #define PyCursesInitialisedColor {if (! ((int (*)(void))PyCurses_API[3]) () ) return NULL;}
+#define PyCursesEncoding(WO) (((const char *(*)(PyCursesWindowObject *))PyCurses_API[4])(WO))
 
 #define import_curses() \
     PyCurses_API = (void **)PyCapsule_Import(PyCurses_CAPSULE_NAME, 1);

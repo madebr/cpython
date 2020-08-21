@@ -32,6 +32,10 @@ try:
     import curses.panel
 except ImportError:
     pass
+try:
+    import curses.menu
+except ImportError:
+    pass
 
 def requires_curses_func(name):
     return unittest.skipUnless(hasattr(curses, name),
@@ -42,7 +46,7 @@ term = os.environ.get('TERM')
 # If newterm was supported we could use it instead of initscr and not exit
 @unittest.skipIf(not term or term == 'unknown',
                  "$TERM=%r, calling initscr() may cause exit" % term)
-@unittest.skipIf(sys.platform == "cygwin",
+@unittest.skipIf(sys.platform == 'cygwin',
                  "cygwin's curses mostly just hangs")
 class TestCurses(unittest.TestCase):
 
@@ -81,7 +85,7 @@ class TestCurses(unittest.TestCase):
         self.save_signals.restore()
 
     def test_window_funcs(self):
-        "Test the methods of windows"
+        'Test the methods of windows'
         stdscr = self.stdscr
         win = curses.newwin(10,10)
         win = curses.newwin(5,5, 5,5)
@@ -123,7 +127,7 @@ class TestCurses(unittest.TestCase):
         win.border('|', '!', '-', '_',
                    '+', '\\', '#', '/')
         with self.assertRaises(TypeError,
-                               msg="Expected win.border() to raise TypeError"):
+                               msg='Expected win.border() to raise TypeError'):
             win.border(65, 66, 67, 68,
                        69, [], 71, 72)
 
@@ -185,7 +189,7 @@ class TestCurses(unittest.TestCase):
         stdscr.setscrreg(10,15)
         win3 = stdscr.subwin(10,10)
         win3 = stdscr.subwin(10,10, 5,5)
-        if hasattr(stdscr, 'syncok') and not sys.platform.startswith("sunos"):
+        if hasattr(stdscr, 'syncok') and not sys.platform.startswith('sunos'):
             stdscr.syncok(1)
         stdscr.timeout(5)
         stdscr.touchline(5,5)
@@ -223,7 +227,7 @@ class TestCurses(unittest.TestCase):
                 self.assertRaises(ValueError, stdscr.insnstr, 'a\0', 1)
 
     def test_module_funcs(self):
-        "Test module-level functions"
+        'Test module-level functions'
         for func in [curses.baudrate, curses.beep, curses.can_change_color,
                      curses.cbreak, curses.def_prog_mode, curses.doupdate,
                      curses.flash, curses.flushinp,
@@ -242,7 +246,7 @@ class TestCurses(unittest.TestCase):
             curses.getsyx()
 
         # Functions that actually need arguments
-        if curses.tigetstr("cnorm"):
+        if curses.tigetstr('cnorm'):
             curses.curs_set(1)
         curses.delay_output(1)
         curses.echo() ; curses.echo(1)
@@ -345,7 +349,7 @@ class TestCurses(unittest.TestCase):
 
         p.set_userptr(None)
         self.assertEqual(sys.getrefcount(obj), nrefs,
-                         "set_userptr leaked references")
+                         'set_userptr leaked references')
 
     @requires_curses_func('panel')
     def test_userptr_segfault(self):
@@ -363,6 +367,353 @@ class TestCurses(unittest.TestCase):
         panel = curses.panel.new_panel(w)
         self.assertRaises(TypeError, type(panel))
 
+    @requires_curses_func('menu')
+    def test_curses_menu_item_new(self):
+        item1 = curses.menu.new_item('my name')
+        self.assertEqual(b'my name', item1.name())
+        self.assertIsNone(item1.description())
+
+        item2 = curses.menu.new_item('my name', 'my description')
+        self.assertEqual(b'my name', item2.name())
+        self.assertEqual(b'my description', item2.description())
+
+        item2 = curses.menu.new_item(b'\x80\x81\x82', b'\x85\x81\x83')
+        self.assertEqual(b'\x80\x81\x82', item2.name())
+        self.assertEqual(b'\x85\x81\x83', item2.description())
+
+    @requires_curses_func('menu')
+    def test_curses_menu_item_userptr(self):
+        item = curses.menu.new_item('item')
+
+        self.assertRaises(curses.menu.error, item.userptr)
+        obj = object()
+        item.set_userptr(obj)
+        self.assertEqual(obj, item.userptr())
+        obj_id = id(obj)
+        del obj
+        obj = item.userptr()
+        self.assertIsNotNone(obj)
+        self.assertEqual(obj_id, id(obj))
+
+    @requires_curses_func('menu')
+    def test_curses_menu_item_value(self):
+        item = curses.menu.new_item('item')
+
+        self.assertFalse(item.value())
+        item.set_value(True)
+        self.assertTrue(item.value())
+        item.set_value(False)
+        self.assertFalse(item.value())
+
+    @requires_curses_func('menu')
+    def test_curses_menu_item_visible(self):
+        item = curses.menu.new_item('item')
+
+        # FIXME: should be tested in posted menu
+        self.assertFalse(item.visible())
+
+    @requires_curses_func('menu')
+    def test_curses_menu_item_opts(self):
+        self.assertTrue(hasattr(curses.menu, 'O_SELECTABLE'))
+
+        item = curses.menu.new_item('item')
+
+        item.set_opts(0)
+        self.assertEqual(0, item.opts())
+        item.opts_on(curses.menu.O_SELECTABLE)
+        self.assertEqual(curses.menu.O_SELECTABLE, item.opts())
+        item.opts_off(curses.menu.O_SELECTABLE)
+        self.assertEqual(0, item.opts())
+
+    @requires_curses_func('menu')
+    def test_curses_menu_menu_opts(self):
+        self.assertTrue(hasattr(curses.menu, 'O_ONEVALUE'))
+        self.assertTrue(hasattr(curses.menu, 'O_SHOWDESC'))
+        self.assertTrue(hasattr(curses.menu, 'O_ROWMAJOR'))
+        self.assertTrue(hasattr(curses.menu, 'O_IGNORECASE'))
+        self.assertTrue(hasattr(curses.menu, 'O_SHOWMATCH'))
+        self.assertTrue(hasattr(curses.menu, 'O_NONCYCLIC'))
+        self.assertTrue(hasattr(curses.menu, 'O_MOUSE_MENU'))
+
+    def _create_simple_menu(self, nb=3):
+        import itertools
+        names = ('Apple', 'Pear', 'Orange')
+        items = tuple(curses.menu.new_item(name) for _, name in zip(range(nb), itertools.cycle(names)))
+        return items, curses.menu.new_menu(items)
+
+    @requires_curses_func('menu')
+    def test_curses_menu_menu_items(self):
+        items, menu = self._create_simple_menu()
+        self.assertTupleEqual(items, menu.items())
+        self.assertEqual(len(items), menu.count())
+
+        names2 = ('Salad', 'Tomato', 'Carrot', "Cucumber")
+        items2 = tuple(curses.menu.new_item(name2) for name2 in names2)
+
+        with self.assertRaises(ValueError):
+            menu.set_items(items2 + (None,))
+        self.assertTupleEqual(items, menu.items())
+
+        self.assertNotEqual(len(items), len(items2))
+
+        menu.set_items(items2)
+        self.assertTupleEqual(items2, menu.items())
+        self.assertEqual(len(items2), menu.count())
+
+    @requires_curses_func('menu')
+    def test_curses_menu_menu_item_current(self):
+        short_items, short_menu = self._create_simple_menu(2)
+        with self.assertRaises(curses.menu.error):
+            short_menu.set_top_row(1)
+
+        items, menu = self._create_simple_menu(50)
+
+        self.assertEqual(items[0], menu.current_item())
+        menu.set_current_item(items[1])
+        self.assertEqual(items[1], menu.current_item())
+
+        self.assertEqual(0, menu.top_row())
+        menu.set_top_row(1)
+        self.assertEqual(1, menu.top_row())
+
+        self.assertEqual(1, items[1].index())
+
+        new_item = curses.menu.new_item("new_item")
+        with self.assertRaises(curses.menu.error):
+            new_item.index()
+
+        menu.set_current_item(items[1])
+        with self.assertRaises(curses.menu.error):
+            menu.set_current_item(None)
+        self.assertIsNotNone(menu.current_item())
+
+    @requires_curses_func('menu')
+    def test_curses_menu_menu_format(self):
+        _, menu = self._create_simple_menu()
+
+        self.assertTupleEqual((16, 1), menu.format())
+        menu.set_format(5, 5)
+        self.assertTupleEqual((5, 5), menu.format())
+
+    @requires_curses_func('menu')
+    def test_curses_menu_menu_attributes(self):
+        _, menu = self._create_simple_menu()
+
+        self.assertEqual(curses.A_REVERSE, menu.fore())
+        menu.set_fore(curses.A_BOLD)
+        self.assertEqual(curses.A_BOLD, menu.fore())
+
+        self.assertEqual(curses.A_NORMAL, menu.back())
+        menu.set_back(curses.A_NORMAL)
+        self.assertEqual(curses.A_NORMAL, menu.back())
+
+        self.assertEqual(curses.A_UNDERLINE, menu.grey())
+        menu.set_grey(curses.A_DIM)
+        self.assertEqual(curses.A_DIM, menu.grey())
+
+        self.assertEqual(curses.ascii.SP, menu.pad())
+        menu.set_pad(ord('*'))
+        self.assertEqual(ord('*'), menu.pad())
+        menu.set_pad(ord('/'))
+        self.assertEqual(ord('/'), menu.pad())
+
+    @requires_curses_func('menu')
+    def test_curses_menu_menu_mark(self):
+        _, menu = self._create_simple_menu()
+
+        self.assertEqual(b'-', menu.mark())
+        menu.set_mark('*')
+        self.assertEqual(b'*', menu.mark())
+
+    @requires_curses_func('menu')
+    def test_curses_menu_menu_spacing(self):
+        _, menu = self._create_simple_menu()
+
+        menu_spacing = menu.spacing()
+        self.assertIsInstance(menu_spacing, tuple)
+        self.assertTrue(3, len(menu_spacing))
+        menu.set_spacing(1, 2, 3)
+        self.assertTupleEqual((1, 2, 3), menu.spacing())
+
+    @requires_curses_func('menu')
+    def test_curses_menu_menu_userptr(self):
+        _, menu = self._create_simple_menu()
+
+        with self.assertRaises(curses.menu.error):
+            menu.userptr()
+        obj = object()
+        menu.set_userptr(obj)
+        self.assertEqual(obj, menu.userptr())
+        obj_id = id(obj)
+        del obj
+        obj = menu.userptr()
+        self.assertEqual(obj_id, id(obj))
+
+    @requires_curses_func('menu')
+    def test_curses_menu_menu_pattern_buffer(self):
+        _, menu = self._create_simple_menu()
+
+        self.assertIsInstance(menu.pattern(), bytes)
+        menu.set_pattern("Sal")
+        self.assertEqual(b"Sal", menu.pattern())
+
+    @requires_curses_func('menu')
+    def test_curses_menu_menu_windows(self):
+        _, menu = self._create_simple_menu()
+
+        w1 = curses.newwin(10, 10)
+        w2 = curses.newwin(8, 8, 1, 1)
+
+        self.assertEqual(self.stdscr, menu.win())
+        self.assertEqual(self.stdscr, menu.sub())
+        menu.set_win(w1)
+        menu.set_sub(w2)
+        self.assertEqual(w1, menu.win())
+        self.assertEqual(w2, menu.sub())
+
+        del menu
+        del w1
+        del w2
+
+    @requires_curses_func('menu')
+    def test_curses_menu_menu_post(self):
+        _, menu = self._create_simple_menu()
+
+        menu.post()
+        self.assertRaises(curses.error, menu.post)
+        menu.unpost()
+
+    @requires_curses_func('menu')
+    def test_curses_menu_menu_hook(self):
+        _, menu = self._create_simple_menu()
+
+        with self.assertRaises(curses.menu.error):
+            menu.item_init()
+        with self.assertRaises(curses.menu.error):
+            menu.item_term()
+        with self.assertRaises(curses.menu.error):
+            menu.menu_init()
+        with self.assertRaises(curses.menu.error):
+            menu.menu_term()
+
+        with self.assertRaises(curses.menu.error):
+            menu.set_item_init(object())
+
+        called = {
+            'item_init': None,
+            'item_term': None,
+            'menu_init': None,
+            'menu_term': None,
+        }
+
+        class ObjHook(object):
+            def __init__(self, key):
+                self.key = key
+
+            def __call__(self, menu):
+                called[self.key] = menu
+
+        o_item_init = ObjHook('item_init')
+        o_item_term = ObjHook('item_term')
+        o_menu_init = ObjHook('menu_init')
+        o_menu_term = ObjHook('menu_term')
+        menu.set_item_init(o_item_init)
+        menu.set_item_term(o_item_term)
+        menu.set_menu_init(o_menu_init)
+        menu.set_menu_term(o_menu_term)
+        self.assertEqual(o_item_init, menu.item_init())
+        self.assertEqual(o_item_term, menu.item_term())
+        self.assertEqual(o_menu_init, menu.menu_init())
+        self.assertEqual(o_menu_term, menu.menu_term())
+        del o_item_init
+        del o_item_term
+        del o_menu_init
+        del o_menu_term
+
+        self.assertTrue(all(w is None for w in called.values()))
+
+        menu.post()
+        # self.assertEqual(menu, called['item_init'])
+        # self.assertIsNone(called['item_term'])
+        # self.assertEqual(menu, called['menu_init'])
+        # self.assertIsNone(called['menu_term'])
+        # menu['item_init'] = None
+        # menu['menu_init'] = None
+        #
+        # menu.unpost()
+        # self.assertIsNone(called['item_init'])
+        # self.assertEqual(menu, called['item_term'])
+        # self.assertIsNone(called['menu_init'])
+        # self.assertEqual(menu, called['menu_term'])
+
+    @requires_curses_func('menu')
+    def test_new_curses_menu(self):
+        items, menu = self._create_simple_menu()
+
+        self.assertEqual(items, menu.items())
+        menu.set_back(curses.A_REVERSE)
+        self.assertEqual(curses.A_REVERSE, menu.back())
+        menu.set_current_item(items[1])
+        self.assertEqual(items[1], menu.current_item())
+        menu.set_fore(curses.A_BLINK)
+        self.assertEqual(curses.A_BLINK, menu.fore())
+        menu.set_format(4, 2)
+        self.assertEqual((4, 2), menu.format())
+        menu.set_grey(curses.A_UNDERLINE)
+        self.assertEqual(curses.A_UNDERLINE, menu.grey())
+        menu.set_mark('&')
+        self.assertEqual(b'&', menu.mark())
+        menu.set_opts(curses.menu.O_SHOWMATCH)
+        self.assertEqual(curses.menu.O_SHOWMATCH, menu.opts())
+        menu.set_pad(ord('#'))
+        self.assertEqual(ord('#'), menu.pad())
+        menu.set_pattern('<>')
+        self.assertEqual(b'<>', menu.pattern())
+        menu.set_top_row(1)
+        self.assertEqual(1, menu.top_row())
+        menu.set_spacing(3, 2, 2)
+        self.assertEqual((3, 2, 2), menu.spacing())
+        menu.set_items(items2)
+        self.assertEqual(items2, menu.items())
+
+        menu.opts_on(menu.O_SHOWDESC)
+        self.assertNotEqual(0, menu.opts() & curses.menu.O_SHOWDESC)
+        menu.opts_off(menu.O_SHOWDESC)
+        self.assertEqual(0, menu.opts() & curses.menu.O_SHOWDESC)
+
+        self.assertEqual(None, menu.userptr())
+        menu.set_userptr(nil)
+        self.assertEqual(nil, menu.userptr())
+
+    @requires_curses_func('menu')
+    def test_curses_menu_menu_driver(self):
+        self.assertTrue(hasattr(curses.menu, 'REQ_LEFT_ITEM'))
+        self.assertTrue(hasattr(curses.menu, 'REQ_RIGHT_ITEM'))
+        self.assertTrue(hasattr(curses.menu, 'REQ_UP_ITEM'))
+        self.assertTrue(hasattr(curses.menu, 'REQ_DOWN_ITEM'))
+        self.assertTrue(hasattr(curses.menu, 'REQ_SCR_ULINE'))
+        self.assertTrue(hasattr(curses.menu, 'REQ_SCR_DLINE'))
+        self.assertTrue(hasattr(curses.menu, 'REQ_SCR_DPAGE'))
+        self.assertTrue(hasattr(curses.menu, 'REQ_SCR_UPAGE'))
+        self.assertTrue(hasattr(curses.menu, 'REQ_FIRST_ITEM'))
+        self.assertTrue(hasattr(curses.menu, 'REQ_LAST_ITEM'))
+        self.assertTrue(hasattr(curses.menu, 'REQ_NEXT_ITEM'))
+        self.assertTrue(hasattr(curses.menu, 'REQ_PREV_ITEM'))
+        self.assertTrue(hasattr(curses.menu, 'REQ_TOGGLE_ITEM'))
+        self.assertTrue(hasattr(curses.menu, 'REQ_CLEAR_PATTERN'))
+        self.assertTrue(hasattr(curses.menu, 'REQ_BACK_PATTERN'))
+        self.assertTrue(hasattr(curses.menu, 'REQ_NEXT_MATCH'))
+        self.assertTrue(hasattr(curses.menu, 'REQ_PREV_MATCH'))
+
+    @requires_curses_func('menu')
+    def test_curses_menu_requestname(self):
+        self.assertEqual('LEFT_ITEM', curses.menu.request_name(curses.menu.REQ_LEFT_ITEM))
+        self.assertEqual(curses.menu.REQ_CLEAR_PATTERN, curses.menu.request_by_name('CLEAR_PATTERN'))
+        with self.assertRaises(curses.menu.error):
+            curses.menu.request_name(0x0)
+        with self.assertRaises(curses.menu.error):
+            curses.menu.request_by_name('NON_EXISTENT_REQUEST')
+
     @requires_curses_func('is_term_resized')
     def test_is_term_resized(self):
         curses.is_term_resized(*self.stdscr.getmaxyx())
@@ -373,7 +724,6 @@ class TestCurses(unittest.TestCase):
 
     @requires_curses_func('resizeterm')
     def test_resizeterm(self):
-        stdscr = self.stdscr
         lines, cols = curses.LINES, curses.COLS
         new_lines = lines - 1
         new_cols = cols + 1
@@ -388,7 +738,7 @@ class TestCurses(unittest.TestCase):
 
     @requires_curses_func('unget_wch')
     @unittest.skipIf(getattr(curses, 'ncurses_version', (99,)) < (5, 8),
-                     "unget_wch is broken in ncurses 5.7 and earlier")
+                     'unget_wch is broken in ncurses 5.7 and earlier')
     def test_unget_wch(self):
         stdscr = self.stdscr
         encoding = stdscr.encoding
@@ -400,7 +750,7 @@ class TestCurses(unittest.TestCase):
             try:
                 curses.unget_wch(ch)
             except Exception as err:
-                self.fail("unget_wch(%a) failed with encoding %s: %s"
+                self.fail('unget_wch(%a) failed with encoding %s: %s'
                           % (ch, stdscr.encoding, err))
             read = stdscr.get_wch()
             self.assertEqual(read, ch)
@@ -411,7 +761,7 @@ class TestCurses(unittest.TestCase):
             self.assertEqual(read, ch)
 
     def test_issue10570(self):
-        b = curses.tparm(curses.tigetstr("cup"), 5, 3)
+        b = curses.tparm(curses.tigetstr('cup'), 5, 3)
         self.assertIs(type(b), bytes)
 
     def test_encoding(self):
@@ -450,8 +800,8 @@ class TestCurses(unittest.TestCase):
         # Since this is parsing output from Argument Clinic, we can
         # be reasonably certain the generated parsing code will be
         # correct too.
-        human_readable_signature = stdscr.addch.__doc__.split("\n")[0]
-        self.assertIn("[y, x,]", human_readable_signature)
+        human_readable_signature = stdscr.addch.__doc__.split('\n')[0]
+        self.assertIn('[y, x,]', human_readable_signature)
 
     def test_issue13051(self):
         stdscr = self.stdscr
